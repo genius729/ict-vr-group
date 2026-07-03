@@ -1,7 +1,6 @@
 // Firebase v11 Modular SDK 설정 파일입니다.
 // 현재 프로젝트는 번들러 없이 브라우저에서 바로 실행되므로 CDN ES Module을 사용합니다.
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js';
-import { getAnalytics, isSupported } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-analytics.js';
 import { getAuth } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
 import { getFirestore } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
 
@@ -20,8 +19,3 @@ export const firebaseConfig = {
 export const firebaseApp = initializeApp(firebaseConfig);
 export const auth = getAuth(firebaseApp);
 export const db = getFirestore(firebaseApp);
-
-// Analytics는 지원되는 브라우저 환경에서만 초기화합니다.
-export const analyticsPromise = isSupported()
-  .then((supported) => (supported ? getAnalytics(firebaseApp) : null))
-  .catch(() => null);
