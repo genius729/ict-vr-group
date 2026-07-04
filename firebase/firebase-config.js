@@ -1,21 +1,21 @@
-// Firebase v11 Modular SDK 설정 파일입니다.
-// 현재 프로젝트는 번들러 없이 브라우저에서 바로 실행되므로 CDN ES Module을 사용합니다.
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js';
-import { getAuth } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
-import { getFirestore } from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
 
-// Firebase 콘솔에서 발급된 양청고 이수학점 계산기 웹 앱 설정입니다.
-export const firebaseConfig = {
-  apiKey: 'AIzaSyDbyRGGG2_12unb92Feb0YsRZ0VpODhvEo',
-  authDomain: 'yc-credit-calculator.firebaseapp.com',
-  projectId: 'yc-credit-calculator',
-  storageBucket: 'yc-credit-calculator.firebasestorage.app',
-  messagingSenderId: '600724577234',
-  appId: '1:600724577234:web:f6926485465e929c94c60b',
-  measurementId: 'G-20G35XSLWQ',
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyC-E8fOAkesIxrlzrf0YngkASsy0xSFWuU",
+  authDomain: "ict-vr.firebaseapp.com",
+  projectId: "ict-vr",
+  storageBucket: "ict-vr.firebasestorage.app",
+  messagingSenderId: "19432851952",
+  appId: "1:19432851952:web:d45ed9796d5aa66f673535",
+  measurementId: "G-BKWTXXTQ08"
 };
 
-// 앱, 인증, Firestore 인스턴스를 한 곳에서 생성해 중복 초기화를 막습니다.
-export const firebaseApp = initializeApp(firebaseConfig);
-export const auth = getAuth(firebaseApp);
-export const db = getFirestore(firebaseApp);
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);

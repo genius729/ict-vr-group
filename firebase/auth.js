@@ -1,4 +1,4 @@
-// Google OAuth 인증과 양청고 Google Workspace 도메인 검증을 담당합니다.
+// Google OAuth 인증을 담당하며, 임시로 학교 도메인 제약 없이 로그인할 수 있게 합니다.
 import {
   GoogleAuthProvider,
   onAuthStateChanged,
@@ -8,38 +8,25 @@ import {
 import { auth } from './firebase-config.js';
 
 export const SCHOOL_EMAIL_DOMAIN = '@yc.hs.kr';
-export const SCHOOL_DOMAIN_ERROR = '양청고등학교 계정으로만 로그인할 수 있습니다.';
+export const SCHOOL_DOMAIN_ERROR = '학교 이메일이 아니어도 로그인할 수 있습니다.';
 
 const provider = new GoogleAuthProvider();
-provider.setCustomParameters({ hd: 'yc.hs.kr', prompt: 'select_account' });
+provider.setCustomParameters({ prompt: 'select_account' });
 
-// 클라이언트에서도 학교 이메일 도메인을 검사해 잘못된 계정 접근을 차단합니다.
+// 임시로 로그인 가능한 이메일을 제한하지 않도록 처리합니다.
 export function isAllowedSchoolEmail(email = '') {
-  return email.toLowerCase().endsWith(SCHOOL_EMAIL_DOMAIN);
+  return Boolean(email);
 }
 
-// Google 계정으로 로그인하고, 학교 도메인이 아니면 즉시 로그아웃합니다.
+// Google 계정으로 로그인합니다.
 export async function signInWithGoogle() {
   const result = await signInWithPopup(auth, provider);
-  const email = result.user?.email || '';
-
-  if (!isAllowedSchoolEmail(email)) {
-    await signOut(auth);
-    throw new Error(SCHOOL_DOMAIN_ERROR);
-  }
-
   return result.user;
 }
 
 // Firebase 인증 상태 변화를 구독합니다.
 export function watchAuthState(callback) {
-  return onAuthStateChanged(auth, async (user) => {
-    if (user && !isAllowedSchoolEmail(user.email || '')) {
-      await signOut(auth);
-      callback(null, SCHOOL_DOMAIN_ERROR);
-      return;
-    }
-
+  return onAuthStateChanged(auth, (user) => {
     callback(user, null);
   });
 }

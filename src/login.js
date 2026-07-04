@@ -1,5 +1,6 @@
 // 로그인 흐름을 초기화하고 React 앱에 인증 상태를 전달하는 얇은 컨트롤러입니다.
 import { SCHOOL_DOMAIN_ERROR, signInWithGoogle, signOutGoogle, watchAuthState } from '../firebase/auth.js';
+import { recordUserLogin } from '../firebase/firestore.js';
 import { buildStudentProfile } from './gradeDetector.js';
 import { clearAllStoredData, saveLoginInfo } from './storage.js';
 
@@ -18,6 +19,7 @@ export function initLoginController(onChange) {
 
     const profile = buildStudentProfile(user);
     saveLoginInfo(profile);
+    recordUserLogin(user, profile).catch((error) => console.warn('로그인 기록 저장 실패', error));
     onChange({ status: 'signed-in', profile, user, error: null });
   });
 }
@@ -26,7 +28,9 @@ export function initLoginController(onChange) {
 export async function loginWithGoogle() {
   try {
     const user = await signInWithGoogle();
-    return buildStudentProfile(user);
+    const profile = buildStudentProfile(user);
+    await recordUserLogin(user, profile);
+    return profile;
   } catch (error) {
     throw new Error(error?.message || SCHOOL_DOMAIN_ERROR);
   }

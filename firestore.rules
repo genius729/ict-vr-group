@@ -2,14 +2,77 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
     function isYangcheongAccount() {
-      return request.auth != null
+      return signedIn()
         && request.auth.token.email.matches('.*@yc\\.hs\\.kr$');
     }
 
+    function adminPath() {
+      return /databases/$(database)/documents/admins/$(request.auth.token.email);
+    }
+
+    function isAdmin() {
+      return signedIn() && exists(adminPath());
+    }
+
+    function isSuperAdmin() {
+      return isAdmin() && get(adminPath()).data.role in [
+        'super-admin',
+        'super_admin',
+        'superadmin',
+        'Super Admin',
+        'SUPER_ADMIN',
+        '최고 관리자'
+      ];
+    }
+
+    function isOwner(userId) {
+      return isYangcheongAccount() && request.auth.uid == userId;
+    }
+
+    match /users/{userId} {
+      allow read, update, delete: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) || isAdmin();
+    }
+
     match /studentCalculatorStates/{userId} {
-      allow read, write: if isYangcheongAccount()
-        && request.auth.uid == userId;
+      allow read, write: if isOwner(userId) || isAdmin();
+    }
+
+    match /subjects/{subjectId} {
+      allow read: if isYangcheongAccount() || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /announcements/{announcementId} {
+      allow read: if isYangcheongAccount() || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /statistics/{statisticId} {
+      allow read: if isYangcheongAccount() || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if isSuperAdmin();
+    }
+
+    match /admins/{adminEmail} {
+      allow read: if isSuperAdmin()
+        || (signedIn() && request.auth.token.email == adminEmail);
+      allow write: if isSuperAdmin();
+    }
+
+    match /systemSettings/{settingId} {
+      allow read: if isYangcheongAccount() || isAdmin();
+      allow write: if isSuperAdmin();
     }
 
     match /{document=**} {

@@ -1,6 +1,6 @@
 // 계산기 상태를 브라우저 LocalStorage에 저장하고 복원합니다.
-const APP_STATE_KEY = 'yccu.calculatorState.v1';
-const LOGIN_STATE_KEY = 'yccu.loginState.v1';
+const APP_STATE_KEY = 'ict.vr.v1';
+const LOGIN_STATE_KEY = 'ict.loginState.v1';
 
 // JSON 파싱 실패가 사용자 화면 오류로 번지지 않도록 안전하게 읽습니다.
 function readJson(key, fallback = null) {
