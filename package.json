@@ -1,0 +1,11 @@
+{
+  "name": "yangcheong-space-reservation",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npx serve .",
+    "build": "node scripts/generate-config.mjs",
+    "check": "node --check src/admin.js && node --check src/auth.js && node --check src/bookings.js && node --check src/main.js && node --check src/notifications.js && node --check src/rooms.js && node --check src/statistics.js && node --check src/supabase.js && node --check src/ui.js && node --check src/utils.js && node scripts/check.mjs"
+  }
+}
