@@ -57,13 +57,22 @@ create table if not exists public.bookings (
 );
 
 -- pending 요청도 시간대를 선점합니다. 동시 INSERT 경쟁은 DB가 원자적으로 차단합니다.
-do $$ begin
-  alter table public.bookings add constraint bookings_no_time_overlap
-  exclude using gist (
-    room_id with =,
-    tstzrange(start_time, end_time, '[)') with &&
-  ) where (status in ('pending', 'approved'));
-exception when duplicate_object then null; end $$;
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'bookings_no_time_overlap'
+      and conrelid = 'public.bookings'::regclass
+  ) then
+    alter table public.bookings
+    add constraint bookings_no_time_overlap
+    exclude using gist (
+      room_id with =,
+      tstzrange(start_time, end_time, '[)') with &&
+    ) where (status in ('pending', 'approved'));
+  end if;
+end $$;
 
 create index if not exists bookings_user_id_idx on public.bookings(user_id);
 create index if not exists bookings_room_start_idx on public.bookings(room_id, start_time);
@@ -165,6 +174,10 @@ declare
   target_room public.rooms%rowtype;
   local_start timestamp;
   local_end timestamp;
+  requested_hours numeric;
+  daily_booked_hours numeric;
+  day_start timestamptz;
+  day_end timestamptz;
 begin
   if new.status in ('rejected', 'cancelled', 'completed') then
     return new;
@@ -188,7 +201,30 @@ begin
   if local_start::time < target_room.available_start or local_end::time > target_room.available_end then
     raise exception using errcode = 'P0001', message = '특별실 이용 가능 시간을 벗어났습니다.';
   end if;
-  if extract(epoch from (new.end_time - new.start_time)) / 3600.0 > target_room.max_booking_hours then
+  requested_hours := extract(epoch from (new.end_time - new.start_time)) / 3600.0;
+  day_start := local_start::date::timestamp at time zone 'Asia/Seoul';
+  day_end := (local_start::date + 1)::timestamp at time zone 'Asia/Seoul';
+
+  if tg_op = 'UPDATE' then
+    select coalesce(sum(extract(epoch from (b.end_time - b.start_time)) / 3600.0), 0)
+      into daily_booked_hours
+    from public.bookings b
+    where b.room_id = new.room_id
+      and b.id <> old.id
+      and b.status in ('pending', 'approved')
+      and b.start_time >= day_start
+      and b.start_time < day_end;
+  else
+    select coalesce(sum(extract(epoch from (b.end_time - b.start_time)) / 3600.0), 0)
+      into daily_booked_hours
+    from public.bookings b
+    where b.room_id = new.room_id
+      and b.status in ('pending', 'approved')
+      and b.start_time >= day_start
+      and b.start_time < day_end;
+  end if;
+
+  if daily_booked_hours + requested_hours > target_room.max_booking_hours then
     raise exception using errcode = 'P0001', message = '최대 예약 시간을 초과했습니다.';
   end if;
   if new.people > target_room.capacity then
@@ -443,18 +479,26 @@ begin
     group by u.grade
   ), hourly_stats as (
     select
-        to_char(start_time at time zone 'Asia/Seoul', 'HH24') as hour_of_day,
-        count(*)::int as booking_count
+      to_char(start_time at time zone 'Asia/Seoul', 'HH24') as hour_of_day,
+      count(*)::int as booking_count
     from public.bookings, bounds
     where start_time >= from_at and start_time < to_at
     group by hour_of_day
     order by hour_of_day
-), trend as (
-    select to_char(m.month, 'YYYY-MM') month, count(b.id)::int count
-    from generate_series(date_trunc('month', target_month) - interval '5 months',
-                         date_trunc('month', target_month), interval '1 month') m(month)
-    left join public.bookings b on b.start_time >= m.month and b.start_time < m.month + interval '1 month'
-    group by m.month order by m.month
+  ), trend as (
+    select
+      to_char(months.month_value, 'YYYY-MM') as month,
+      count(b.id)::int as count
+    from generate_series(
+           date_trunc('month', target_month) - interval '5 months',
+           date_trunc('month', target_month),
+           interval '1 month'
+         ) as months(month_value)
+    left join public.bookings b
+      on b.start_time >= months.month_value
+     and b.start_time < months.month_value + interval '1 month'
+    group by months.month_value
+    order by months.month_value
   )
   select jsonb_build_object(
     'summary', (select jsonb_build_object(
@@ -464,10 +508,10 @@ begin
       'approval_rate', case when total = 0 then 0 else round(approved * 100.0 / total, 1) end,
       'cancellation_rate', case when total = 0 then 0 else round(cancelled * 100.0 / total, 1) end
     ) from monthly),
-    'rooms', coalesce((select jsonb_agg(to_jsonb(room_usage)) from room_usage), '[]'::jsonb),
-    'grades', coalesce((select jsonb_agg(to_jsonb(grades)) from grades), '[]'::jsonb),
-    'hours', coalesce((select jsonb_agg(to_jsonb(hours)) from hours), '[]'::jsonb),
-    'trend', coalesce((select jsonb_agg(to_jsonb(trend)) from trend), '[]'::jsonb)
+    'rooms', coalesce((select jsonb_agg(to_jsonb(ru)) from room_usage as ru), '[]'::jsonb),
+    'grades', coalesce((select jsonb_agg(to_jsonb(g)) from grades as g), '[]'::jsonb),
+    'hours', coalesce((select jsonb_agg(to_jsonb(h)) from hourly_stats as h), '[]'::jsonb),
+    'trend', coalesce((select jsonb_agg(to_jsonb(t)) from trend as t), '[]'::jsonb)
   ) into result;
   return result;
 end;
