@@ -384,7 +384,7 @@ create trigger bookings_guard_write
 
 drop trigger if exists bookings_validate on public.bookings;
 create trigger bookings_validate
-  before insert or update of room_id, people, start_time, end_time, status on public.bookings
+  before insert or update of room_id, user_id, people, start_time, end_time, status on public.bookings
   for each row execute function public.validate_booking();
 
 create or replace function public.log_booking_change()
