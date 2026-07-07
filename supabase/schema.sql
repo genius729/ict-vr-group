@@ -130,6 +130,15 @@ as $$
   select coalesce(public.current_user_role() = 'admin', false)
 $$;
 
+create or replace function public.booking_blocks_daily_limit(target_status public.booking_status)
+returns boolean
+language sql
+immutable
+set search_path = public
+as $$
+  select target_status in ('pending', 'approved')
+$$;
+
 -- Google OAuth 최초 로그인 사용자를 학생으로 등록합니다.
 create or replace function public.handle_new_auth_user()
 returns trigger
@@ -216,7 +225,7 @@ begin
     from public.bookings b
     where b.room_id = new.room_id
       and b.id <> old.id
-      and b.status in ('pending', 'approved')
+      and public.booking_blocks_daily_limit(b.status)
       and b.start_time >= day_start
       and b.start_time < day_end;
   else
@@ -224,7 +233,7 @@ begin
       into daily_booked_hours
     from public.bookings b
     where b.room_id = new.room_id
-      and b.status in ('pending', 'approved')
+      and public.booking_blocks_daily_limit(b.status)
       and b.start_time >= day_start
       and b.start_time < day_end;
   end if;
@@ -468,7 +477,7 @@ begin
     into booked_hours
   from public.bookings b
   where b.room_id = target_room_id
-    and b.status in ('pending', 'approved')
+    and public.booking_blocks_daily_limit(b.status)
     and (exclude_booking_id is null or b.id <> exclude_booking_id)
     and b.start_time >= day_start
     and b.start_time < day_end;
@@ -653,6 +662,7 @@ using (
 revoke all on function public.current_user_role() from public;
 revoke all on function public.is_staff() from public;
 revoke all on function public.is_admin() from public;
+revoke all on function public.booking_blocks_daily_limit(public.booking_status) from public;
 revoke all on function public.get_room_daily_booking_usage(bigint, date, bigint) from public;
 revoke all on function public.delete_room_if_no_active_bookings(bigint) from public;
 grant execute on function public.current_user_role() to authenticated;
