@@ -58,6 +58,9 @@ export async function deleteRoom(roomId) {
     target_room_id: Number(roomId)
   });
   if (error) {
+    if (error.code === "PGRST202") {
+      throw new Error("삭제 함수가 아직 Supabase DB에 적용되지 않았습니다. supabase/schema.sql의 delete_room_if_no_active_bookings 함수 SQL을 실행해 주세요.");
+    }
     if (error.code === "23503") throw new Error("예약 데이터가 연결된 특별실은 직접 삭제할 수 없습니다. schema.sql을 다시 적용해 주세요.");
     throw error;
   }

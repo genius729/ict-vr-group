@@ -576,6 +576,8 @@ grant select, update on public.notifications to authenticated;
 grant select on public.booking_logs to authenticated;
 grant usage, select on all sequences in schema public to authenticated;
 
+select pg_notify('pgrst', 'reload schema');
+
 -- Storage: 특별실 사진 공개 읽기, 관리자만 쓰기
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('room-images', 'room-images', true, 5242880, array['image/jpeg','image/png','image/webp'])
