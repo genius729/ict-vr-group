@@ -2,9 +2,14 @@ import { cp, mkdir, rm, writeFile } from "node:fs/promises";
 
 const url = process.env.SUPABASE_URL;
 const key = process.env.SUPABASE_ANON_KEY;
+const requiresEnvConfig = Boolean(process.env.CI || process.env.VERCEL);
 
 if (!url || !key) {
-  console.log("SUPABASE_URL/SUPABASE_ANON_KEY가 없어 기존 config.js를 유지합니다.");
+  if (requiresEnvConfig) {
+    console.error("CI/배포 빌드에는 SUPABASE_URL과 SUPABASE_ANON_KEY가 모두 필요합니다.");
+    process.exit(1);
+  }
+  console.log("SUPABASE_URL/SUPABASE_ANON_KEY가 없어 로컬 config.js를 유지합니다.");
 } else {
   const source = `window.__APP_CONFIG__ = ${JSON.stringify({
     SUPABASE_URL: url,
