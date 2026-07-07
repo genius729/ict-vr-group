@@ -5,7 +5,7 @@ const BOOKING_SELECT = `
   id,room_id,user_id,approved_by,purpose,people,start_time,end_time,status,
   created_at,approved_at,cancelled_at,
   room:rooms(id,name,location,capacity),
-  user:users!bookings_user_id_fkey(id,name,email,grade,class_number,student_number),
+  user:users!bookings_user_id_fkey(id,name,email,grade,class_number,student_number,daily_max_booking_hours),
   approver:users!bookings_approved_by_fkey(id,name)
 `;
 
@@ -41,11 +41,12 @@ export async function createBooking(values, userId) {
   return data;
 }
 
-export async function getRoomDailyBookingUsage({ roomId, date, excludeBookingId = null }) {
+export async function getRoomDailyBookingUsage({ roomId, date, excludeBookingId = null, userId = null }) {
   const { data, error } = await requireSupabase().rpc("get_room_daily_booking_usage", {
     target_room_id: Number(roomId),
     target_date: date,
-    exclude_booking_id: excludeBookingId ? Number(excludeBookingId) : null
+    exclude_booking_id: excludeBookingId ? Number(excludeBookingId) : null,
+    target_user_id: userId
   });
   if (error) throw error;
   return data;

@@ -294,7 +294,7 @@ function hoursBetween(start, end) {
   return ((endHour * 60 + endMinute) - (startHour * 60 + startMinute)) / 60;
 }
 
-async function ensureDailyBookingLimit(values, editId = null) {
+async function ensureDailyBookingLimit(values, editId = null, userId = state.profile.id) {
   const room = state.rooms.find(item => item.id === Number(values.room_id)) ??
     (await loadRooms(true)).find(item => item.id === Number(values.room_id));
   if (!room) throw new Error("선택한 특별실 정보를 찾을 수 없습니다.");
@@ -302,15 +302,22 @@ async function ensureDailyBookingLimit(values, editId = null) {
   const usage = await getRoomDailyBookingUsage({
     roomId: values.room_id,
     date: values.date,
-    excludeBookingId: editId
+    excludeBookingId: editId,
+    userId
   });
   const bookedHours = Number(usage?.booked_hours ?? 0);
   const maxHours = Number(usage?.max_booking_hours ?? room.max_booking_hours);
+  const userBookedHours = Number(usage?.user_booked_hours ?? 0);
+  const userMaxHours = Number(usage?.user_daily_max_booking_hours ?? state.profile.daily_max_booking_hours ?? 3);
   const requestedHours = hoursBetween(values.start, values.end);
 
   if (bookedHours + requestedHours > maxHours) {
     const remainingHours = Math.max(0, maxHours - bookedHours);
-    throw new Error(`하루 최대 예약 가능 시간(${maxHours}시간)을 초과했습니다. 남은 예약 가능 시간은 ${remainingHours.toFixed(1)}시간입니다.`);
+    throw new Error(`특별실 하루 최대 예약 가능 시간(${maxHours}시간)을 초과했습니다. 남은 예약 가능 시간은 ${remainingHours.toFixed(1)}시간입니다.`);
+  }
+  if (userBookedHours + requestedHours > userMaxHours) {
+    const remainingHours = Math.max(0, userMaxHours - userBookedHours);
+    throw new Error(`개인 하루 최대 예약 가능 시간(${userMaxHours}시간)을 초과했습니다. 남은 예약 가능 시간은 ${remainingHours.toFixed(1)}시간입니다.`);
   }
 }
 
@@ -390,7 +397,7 @@ async function renderBooking({ roomId, editId } = {}) {
     <div class="form-layout">
       <section class="card form-card">
         <h3>예약 정보</h3>
-        <form id="bookingForm" data-edit-id="${booking?.id ?? ""}">
+        <form id="bookingForm" data-edit-id="${booking?.id ?? ""}" data-user-id="${booking?.user_id ?? state.profile.id}">
           <div class="form-grid">
             <div class="field"><label>신청자</label><input value="${escapeHtml(booking?.user?.name ?? state.profile.name)}" disabled></div>
             <div class="field"><label>특별실 <span class="required">*</span></label>
@@ -553,8 +560,8 @@ async function renderAdminTab() {
     root.innerHTML = bookingTable(bookings, "admin");
   } else {
     const users = await listUsers();
-    root.innerHTML = users.length ? `<div class="card table-card"><table class="data-table"><thead><tr><th>이름</th><th>이메일</th><th>학적 정보</th><th>권한</th><th>가입일</th><th>관리</th></tr></thead><tbody>
-      ${users.map(user => `<tr><td><b>${escapeHtml(user.name)}</b></td><td>${escapeHtml(user.email)}</td><td>${user.grade ? `${user.grade}학년 ${user.class_number ?? "-"}반 ${user.student_number ?? "-"}번` : "-"}</td><td><span class="status ${user.role === "admin" ? "yellow" : user.role === "teacher" ? "green" : "blue"}">${roleLabel(user.role)}</span></td><td>${formatDateTime(user.created_at)}</td><td><button class="approve" data-action="user-edit" data-id="${user.id}">수정</button></td></tr>`).join("")}
+    root.innerHTML = users.length ? `<div class="card table-card"><table class="data-table"><thead><tr><th>이름</th><th>이메일</th><th>학적 정보</th><th>권한</th><th>하루 한도</th><th>가입일</th><th>관리</th></tr></thead><tbody>
+      ${users.map(user => `<tr><td><b>${escapeHtml(user.name)}</b></td><td>${escapeHtml(user.email)}</td><td>${user.grade ? `${user.grade}학년 ${user.class_number ?? "-"}반 ${user.student_number ?? "-"}번` : "-"}</td><td><span class="status ${user.role === "admin" ? "yellow" : user.role === "teacher" ? "green" : "blue"}">${roleLabel(user.role)}</span></td><td>${Number(user.daily_max_booking_hours ?? 3)}시간</td><td>${formatDateTime(user.created_at)}</td><td><button class="approve" data-action="user-edit" data-id="${user.id}">수정</button></td></tr>`).join("")}
     </tbody></table></div>` : emptyState("등록된 사용자가 없습니다", "로그인한 사용자가 여기에 표시됩니다.");
     state.adminUsers = users;
   }
@@ -616,7 +623,7 @@ async function handleContentSubmit(event) {
   setButtonBusy(submit, true);
   try {
     const editId = form.dataset.editId ? Number(form.dataset.editId) : null;
-    await ensureDailyBookingLimit(values, editId);
+    await ensureDailyBookingLimit(values, editId, form.dataset.userId);
     if (editId) {
       await updateBooking(editId, values);
       toast("예약을 수정했습니다.");
@@ -763,6 +770,7 @@ function openUserModal(user) {
       <div class="field"><label>학년</label><input name="grade" type="number" min="1" max="3" value="${user.grade ?? ""}"></div>
       <div class="field"><label>반</label><input name="class_number" type="number" min="1" max="30" value="${user.class_number ?? ""}"></div>
       <div class="field"><label>번호</label><input name="student_number" type="number" min="1" max="50" value="${user.student_number ?? ""}"></div>
+      <div class="field"><label>하루 최대 예약 시간</label><input name="daily_max_booking_hours" type="number" min="0.5" max="24" step="0.5" value="${user.daily_max_booking_hours ?? 3}" required></div>
     </div><div class="modal-actions"><button type="button" class="secondary" data-action="close-modal">취소</button><button class="primary" type="submit">저장</button></div></form>
   `);
   modal.querySelector("#userForm").addEventListener("submit", async event => {

@@ -45,10 +45,15 @@ assertExcludes(html.slice(html.indexOf("</html>") + "</html>".length), "<script"
 assertIncludes(main, 'booking.status === "approved"', "approved edit guard");
 assertIncludes(main, 'item.status === "pending"', "student edit policy");
 assertIncludes(main, '["pending", "approved"].includes(item.status)', "student cancel policy");
+assertIncludes(main, "user_daily_max_booking_hours", "personal daily booking limit");
+assertIncludes(main, "daily_max_booking_hours", "admin personal booking limit editor");
 assertExcludes(main, '["pending", "approved"].includes(item.status) && new Date(item.start_time)', "student edit policy regression");
 
 assertIncludes(schema, "if actor_role = 'student' and old.status = 'approved' then", "database approved edit guard");
 assertIncludes(schema, "승인 완료된 예약은 수정할 수 없습니다", "database approved edit guard");
+assertIncludes(schema, "daily_max_booking_hours numeric", "database personal daily booking limit");
+assertIncludes(schema, "user_daily_booked_hours + requested_hours > booking_user.daily_max_booking_hours", "database personal daily booking limit");
+assertIncludes(schema, "개인 하루 최대 예약 시간을 초과했습니다", "database personal daily booking limit");
 
 assertIncludes(buildScript, "process.env.CI || process.env.VERCEL", "deployment config guard");
 assertIncludes(buildScript, "process.exit(1)", "deployment config guard");
