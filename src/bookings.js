@@ -93,6 +93,13 @@ export async function cancelBooking(bookingId) {
   return data;
 }
 
+export async function deleteBooking(bookingId) {
+  const { error } = await requireSupabase().rpc("delete_booking_as_admin", {
+    target_booking_id: Number(bookingId)
+  });
+  if (error) throw error;
+}
+
 export async function listBookingLogs(bookingId) {
   const { data, error } = await requireSupabase()
     .from("booking_logs")

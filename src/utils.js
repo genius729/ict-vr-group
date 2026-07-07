@@ -95,6 +95,9 @@ export function humanizeError(error) {
   if (error.code === "PGRST202" && /get_room_daily_booking_usage/i.test(error.message ?? "")) {
     return "하루 최대 예약 가능 시간 검증 함수가 아직 Supabase DB에 적용되지 않았습니다. supabase/schema.sql을 다시 실행해 주세요.";
   }
+  if (error.code === "PGRST202" && /delete_booking_as_admin/i.test(error.message ?? "")) {
+    return "예약 삭제 함수가 아직 Supabase DB에 적용되지 않았습니다. supabase/schema.sql을 다시 실행해 주세요.";
+  }
   if (error.code === "PGRST301" || /JWT|session/i.test(error.message ?? "")) {
     return "로그인 세션이 만료되었습니다. 다시 로그인해 주세요.";
   }

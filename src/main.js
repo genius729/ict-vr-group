@@ -2,7 +2,7 @@ import { isConfigured } from "./supabase.js";
 import { signInWithGoogle, signOut, getSession, getProfile, onAuthChange } from "./auth.js";
 import { listRooms, saveRoom, deleteRoom, subscribeRooms } from "./rooms.js";
 import {
-  listBookings, createBooking, updateBooking, decideBooking, cancelBooking,
+  listBookings, createBooking, updateBooking, decideBooking, cancelBooking, deleteBooking,
   listBookingLogs, getRoomDailyBookingUsage, subscribeBookings
 } from "./bookings.js";
 import {
@@ -476,6 +476,7 @@ function bookingTable(bookings, mode = "read") {
         ${mode === "approval" ? `<button class="approve" data-action="booking-approve" data-id="${item.id}">승인</button><button class="reject" data-action="booking-reject" data-id="${item.id}">거절</button>` : ""}
         ${canEdit ? `<button class="approve" data-action="booking-edit" data-id="${item.id}">수정</button><button class="reject" data-action="booking-cancel" data-id="${item.id}">취소</button>` : ""}
         ${state.profile.role === "admin" ? `${item.status === "pending" ? `<button class="approve" data-action="booking-approve" data-id="${item.id}">승인</button><button class="reject" data-action="booking-reject" data-id="${item.id}">거절</button>` : ""}<button class="approve" data-action="booking-edit" data-id="${item.id}">수정</button><button class="approve" data-action="booking-log" data-id="${item.id}">로그</button>${["pending","approved"].includes(item.status) ? `<button class="reject" data-action="booking-force-cancel" data-id="${item.id}">강제 취소</button>` : ""}` : ""}
+        ${mode === "admin" ? `<button class="reject" data-action="booking-delete" data-id="${item.id}">삭제</button>` : ""}
       </div></td></tr>`;
     }).join("")}
   </tbody></table></div>`;
@@ -584,6 +585,7 @@ async function handleContentClick(event) {
     "booking-edit": () => navigate("booking", { editId: Number(id) }),
     "booking-cancel": () => confirmCancelBooking(Number(id), false),
     "booking-force-cancel": () => confirmCancelBooking(Number(id), true),
+    "booking-delete": () => confirmDeleteBooking(Number(id)),
     "booking-approve": () => handleDecision(Number(id), "approved"),
     "booking-reject": () => handleDecision(Number(id), "rejected"),
     "booking-log": () => openBookingLogs(Number(id)),
@@ -688,6 +690,23 @@ function confirmDeleteRoom(roomId) {
         await deleteRoom(roomId);
         toast("특별실을 삭제했습니다.");
         await navigate(state.page);
+      } catch (error) { toast(humanizeError(error), "error"); }
+    }
+  });
+}
+
+function confirmDeleteBooking(bookingId) {
+  showConfirm({
+    title: "예약을 삭제할까요?",
+    message: "삭제한 예약 신청 내역과 관련 감사 로그는 되돌릴 수 없습니다.",
+    confirmText: "삭제",
+    danger: true,
+    onConfirm: async () => {
+      try {
+        await deleteBooking(bookingId);
+        toast("예약 신청 내역을 삭제했습니다.");
+        if (state.page === "admin") await renderAdminTab();
+        else await navigate(state.page);
       } catch (error) { toast(humanizeError(error), "error"); }
     }
   });
