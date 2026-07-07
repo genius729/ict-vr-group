@@ -54,9 +54,11 @@ async function uploadRoomImage(file) {
 }
 
 export async function deleteRoom(roomId) {
-  const { error } = await requireSupabase().from("rooms").delete().eq("id", roomId);
+  const { error } = await requireSupabase().rpc("delete_room_if_no_active_bookings", {
+    target_room_id: Number(roomId)
+  });
   if (error) {
-    if (error.code === "23503") throw new Error("예약 이력이 있는 특별실은 삭제할 수 없습니다. 이용 중지 상태로 변경해 주세요.");
+    if (error.code === "23503") throw new Error("예약 데이터가 연결된 특별실은 직접 삭제할 수 없습니다. schema.sql을 다시 적용해 주세요.");
     throw error;
   }
 }
@@ -69,4 +71,3 @@ export function subscribeRooms(callback) {
     .subscribe();
   return () => client.removeChannel(channel);
 }
-

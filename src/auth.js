@@ -10,6 +10,11 @@ export async function signInWithGoogle() {
   if (error) throw error;
 }
 
+export async function signInAsGuest() {
+  const { error } = await requireSupabase().auth.signInAnonymously();
+  if (error) throw error;
+}
+
 export async function signOut() {
   const { error } = await requireSupabase().auth.signOut();
   if (error) throw error;
@@ -39,4 +44,3 @@ export function onAuthChange(callback) {
   const { data } = requireSupabase().auth.onAuthStateChange((event, session) => callback(event, session));
   return () => data.subscription.unsubscribe();
 }
-

@@ -473,6 +473,41 @@ begin
 end;
 $$;
 
+create or replace function public.delete_room_if_no_active_bookings(target_room_id bigint)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  blocking_count integer;
+begin
+  if not public.is_admin() then
+    raise exception using errcode = '42501', message = '관리자만 특별실을 삭제할 수 있습니다.';
+  end if;
+
+  select count(*) into blocking_count
+  from public.bookings
+  where room_id = target_room_id
+    and status = 'approved'
+    and end_time > now();
+
+  if blocking_count > 0 then
+    raise exception using errcode = 'P0001', message = '승인된 예정 또는 진행 예약이 있는 특별실은 삭제할 수 없습니다. 먼저 예약을 취소해 주세요.';
+  end if;
+
+  delete from public.bookings
+  where room_id = target_room_id;
+
+  delete from public.rooms
+  where id = target_room_id;
+
+  if not found then
+    raise exception using errcode = 'P0001', message = '존재하지 않는 특별실입니다.';
+  end if;
+end;
+$$;
+
 -- Row Level Security
 alter table public.users enable row level security;
 alter table public.rooms enable row level security;
@@ -525,10 +560,12 @@ using (
 revoke all on function public.current_user_role() from public;
 revoke all on function public.is_staff() from public;
 revoke all on function public.is_admin() from public;
+revoke all on function public.delete_room_if_no_active_bookings(bigint) from public;
 grant execute on function public.current_user_role() to authenticated;
 grant execute on function public.is_staff() to authenticated;
 grant execute on function public.is_admin() to authenticated;
 grant execute on function public.get_booking_statistics(date) to authenticated;
+grant execute on function public.delete_room_if_no_active_bookings(bigint) to authenticated;
 revoke all on function public.create_booking_reminders() from public;
 
 -- 명시적 테이블 권한 + RLS의 이중 방어
