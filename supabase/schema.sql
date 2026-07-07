@@ -328,6 +328,9 @@ begin
       new.cancelled_at := now();
       return new;
     end if;
+    if actor_role = 'student' and old.status = 'approved' then
+      raise exception using errcode = '42501', message = '승인 완료된 예약은 수정할 수 없습니다. 변경이 필요하면 취소 후 다시 신청해 주세요.';
+    end if;
     if new.status is distinct from old.status or
        new.user_id is distinct from old.user_id or
        new.approved_by is distinct from old.approved_by or

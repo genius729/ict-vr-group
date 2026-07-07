@@ -374,6 +374,9 @@ async function renderBooking({ roomId, editId } = {}) {
       userId: state.profile.id
     })).find(item => item.id === Number(editId));
     if (!booking) throw new Error("수정할 예약을 찾을 수 없습니다.");
+    if (state.profile.role === "student" && booking.status === "approved") {
+      throw new Error("승인 완료된 예약은 수정할 수 없습니다. 변경이 필요하면 예약을 취소한 뒤 다시 신청하세요.");
+    }
   }
   const parts = booking ? getSeoulParts(booking.start_time) : null;
   const endParts = booking ? getSeoulParts(booking.end_time) : null;
@@ -471,10 +474,13 @@ function bookingTable(bookings, mode = "read") {
   if (!bookings.length) return emptyState("표시할 예약이 없습니다", "새로운 예약이 등록되면 여기에 표시됩니다.");
   return `<div class="card table-card"><table class="data-table"><thead><tr><th>번호</th><th>신청 시간</th><th>특별실</th><th>사용 일시</th><th>신청자 / 목적</th><th>인원</th><th>상태</th><th>관리</th></tr></thead><tbody>
     ${bookings.map(item => {
-      const canEdit = mode === "mine" && ["pending", "approved"].includes(item.status) && new Date(item.start_time) > new Date();
+      const isUpcomingOwnBooking = mode === "mine" && new Date(item.start_time) > new Date();
+      const canEdit = isUpcomingOwnBooking && item.status === "pending";
+      const canCancel = isUpcomingOwnBooking && ["pending", "approved"].includes(item.status);
       return `<tr><td>#${item.id}</td><td>${formatDateTime(item.created_at, { second: "2-digit" })}</td><td><b>${escapeHtml(item.room?.name ?? "-")}</b><br>${escapeHtml(item.room?.location ?? "")}</td><td>${formatDateTime(item.start_time)}<br>~ ${formatDateTime(item.end_time, { year: undefined, month: undefined, day: undefined })}</td><td><b>${escapeHtml(item.user?.name ?? state.profile.name)}</b><br>${escapeHtml(item.purpose)}</td><td>${item.people}명</td><td><span class="status ${statusTone(item.status)}">${statusLabel(item.status)}</span></td><td>${state.profile.role === "admin" ? `<div class="booking-created-time"><b>신청 시각</b>${formatDateTime(item.created_at, { second: "2-digit" })}</div>` : ""}<div class="action-buttons">
         ${mode === "approval" ? `<button class="approve" data-action="booking-approve" data-id="${item.id}">승인</button><button class="reject" data-action="booking-reject" data-id="${item.id}">거절</button>` : ""}
-        ${canEdit ? `<button class="approve" data-action="booking-edit" data-id="${item.id}">수정</button><button class="reject" data-action="booking-cancel" data-id="${item.id}">취소</button>` : ""}
+        ${canEdit ? `<button class="approve" data-action="booking-edit" data-id="${item.id}">수정</button>` : ""}
+        ${canCancel ? `<button class="reject" data-action="booking-cancel" data-id="${item.id}">취소</button>` : ""}
         ${state.profile.role === "admin" ? `${item.status === "pending" ? `<button class="approve" data-action="booking-approve" data-id="${item.id}">승인</button><button class="reject" data-action="booking-reject" data-id="${item.id}">거절</button>` : ""}<button class="approve" data-action="booking-edit" data-id="${item.id}">수정</button><button class="approve" data-action="booking-log" data-id="${item.id}">로그</button>${["pending","approved"].includes(item.status) ? `<button class="reject" data-action="booking-force-cancel" data-id="${item.id}">강제 취소</button>` : ""}` : ""}
         ${mode === "admin" ? `<button class="reject" data-action="booking-delete" data-id="${item.id}">삭제</button>` : ""}
       </div></td></tr>`;
