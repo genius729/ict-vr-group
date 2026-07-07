@@ -3,7 +3,7 @@ import { signInWithGoogle, signOut, getSession, getProfile, onAuthChange } from 
 import { listRooms, saveRoom, deleteRoom, subscribeRooms } from "./rooms.js";
 import {
   listBookings, createBooking, updateBooking, decideBooking, cancelBooking,
-  listBookingLogs, subscribeBookings
+  listBookingLogs, getRoomDailyBookingUsage, subscribeBookings
 } from "./bookings.js";
 import {
   listNotifications, markAllNotificationsRead, subscribeNotifications
@@ -286,6 +286,32 @@ function roomSchedule(room) {
 function bookingSchedule(booking) {
   const parts = getSeoulParts(booking.start_time);
   return `<div class="schedule"><time>${parts.month}.${parts.day}</time><i class="dot" style="background:var(--blue)"></i><div><b>${escapeHtml(booking.room?.name ?? "특별실")}</b><small>${parts.hour}:${parts.minute} · ${escapeHtml(booking.purpose)}</small></div><span class="status ${statusTone(booking.status)}">${statusLabel(booking.status)}</span></div>`;
+}
+
+function hoursBetween(start, end) {
+  const [startHour, startMinute] = start.split(":").map(Number);
+  const [endHour, endMinute] = end.split(":").map(Number);
+  return ((endHour * 60 + endMinute) - (startHour * 60 + startMinute)) / 60;
+}
+
+async function ensureDailyBookingLimit(values, editId = null) {
+  const room = state.rooms.find(item => item.id === Number(values.room_id)) ??
+    (await loadRooms(true)).find(item => item.id === Number(values.room_id));
+  if (!room) throw new Error("선택한 특별실 정보를 찾을 수 없습니다.");
+
+  const usage = await getRoomDailyBookingUsage({
+    roomId: values.room_id,
+    date: values.date,
+    excludeBookingId: editId
+  });
+  const bookedHours = Number(usage?.booked_hours ?? 0);
+  const maxHours = Number(usage?.max_booking_hours ?? room.max_booking_hours);
+  const requestedHours = hoursBetween(values.start, values.end);
+
+  if (bookedHours + requestedHours > maxHours) {
+    const remainingHours = Math.max(0, maxHours - bookedHours);
+    throw new Error(`하루 최대 예약 가능 시간(${maxHours}시간)을 초과했습니다. 남은 예약 가능 시간은 ${remainingHours.toFixed(1)}시간입니다.`);
+  }
 }
 
 async function renderRooms() {
@@ -581,8 +607,10 @@ async function handleContentSubmit(event) {
   const submit = form.querySelector('[type="submit"]');
   setButtonBusy(submit, true);
   try {
-    if (form.dataset.editId) {
-      await updateBooking(Number(form.dataset.editId), values);
+    const editId = form.dataset.editId ? Number(form.dataset.editId) : null;
+    await ensureDailyBookingLimit(values, editId);
+    if (editId) {
+      await updateBooking(editId, values);
       toast("예약을 수정했습니다.");
     } else {
       const booking = await createBooking(values, state.profile.id);

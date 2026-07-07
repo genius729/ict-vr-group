@@ -92,6 +92,9 @@ export function humanizeError(error) {
   if (error.code === "23P01") return "선택한 시간대에 이미 다른 예약이 있습니다.";
   if (error.code === "42501") return "이 작업을 수행할 권한이 없습니다.";
   if (error.code === "23505") return "이미 등록된 값입니다.";
+  if (error.code === "PGRST202" && /get_room_daily_booking_usage/i.test(error.message ?? "")) {
+    return "하루 최대 예약 가능 시간 검증 함수가 아직 Supabase DB에 적용되지 않았습니다. supabase/schema.sql을 다시 실행해 주세요.";
+  }
   if (error.code === "PGRST301" || /JWT|session/i.test(error.message ?? "")) {
     return "로그인 세션이 만료되었습니다. 다시 로그인해 주세요.";
   }
@@ -111,4 +114,3 @@ export function debounce(fn, delay = 200) {
     timer = setTimeout(() => fn(...args), delay);
   };
 }
-

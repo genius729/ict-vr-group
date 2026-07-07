@@ -41,6 +41,16 @@ export async function createBooking(values, userId) {
   return data;
 }
 
+export async function getRoomDailyBookingUsage({ roomId, date, excludeBookingId = null }) {
+  const { data, error } = await requireSupabase().rpc("get_room_daily_booking_usage", {
+    target_room_id: Number(roomId),
+    target_date: date,
+    exclude_booking_id: excludeBookingId ? Number(excludeBookingId) : null
+  });
+  if (error) throw error;
+  return data;
+}
+
 export async function updateBooking(bookingId, values) {
   const payload = {
     room_id: Number(values.room_id),

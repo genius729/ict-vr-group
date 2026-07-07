@@ -205,6 +205,11 @@ begin
   day_start := local_start::date::timestamp at time zone 'Asia/Seoul';
   day_end := (local_start::date + 1)::timestamp at time zone 'Asia/Seoul';
 
+  perform pg_advisory_xact_lock(
+    hashtext(new.room_id::text),
+    (local_start::date - date '2000-01-01')::integer
+  );
+
   if tg_op = 'UPDATE' then
     select coalesce(sum(extract(epoch from (b.end_time - b.start_time)) / 3600.0), 0)
       into daily_booked_hours
@@ -434,6 +439,50 @@ $$;
 
 
 -- 교사/관리자 전용 실제 DB 통계
+create or replace function public.get_room_daily_booking_usage(
+  target_room_id bigint,
+  target_date date,
+  exclude_booking_id bigint default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  target_room public.rooms%rowtype;
+  day_start timestamptz := target_date::timestamp at time zone 'Asia/Seoul';
+  day_end timestamptz := (target_date + 1)::timestamp at time zone 'Asia/Seoul';
+  booked_hours numeric;
+begin
+  if auth.uid() is null then
+    raise exception using errcode = '42501', message = '로그인이 필요합니다.';
+  end if;
+
+  select * into target_room from public.rooms where id = target_room_id;
+  if not found then
+    raise exception using errcode = 'P0001', message = '존재하지 않는 특별실입니다.';
+  end if;
+
+  select coalesce(sum(extract(epoch from (b.end_time - b.start_time)) / 3600.0), 0)
+    into booked_hours
+  from public.bookings b
+  where b.room_id = target_room_id
+    and b.status in ('pending', 'approved')
+    and (exclude_booking_id is null or b.id <> exclude_booking_id)
+    and b.start_time >= day_start
+    and b.start_time < day_end;
+
+  return jsonb_build_object(
+    'room_id', target_room.id,
+    'date', target_date,
+    'booked_hours', booked_hours,
+    'max_booking_hours', target_room.max_booking_hours,
+    'remaining_hours', greatest(target_room.max_booking_hours - booked_hours, 0)
+  );
+end;
+$$;
+
 create or replace function public.get_booking_statistics(target_month date default date_trunc('month', now())::date)
 returns jsonb
 language plpgsql
@@ -604,10 +653,12 @@ using (
 revoke all on function public.current_user_role() from public;
 revoke all on function public.is_staff() from public;
 revoke all on function public.is_admin() from public;
+revoke all on function public.get_room_daily_booking_usage(bigint, date, bigint) from public;
 revoke all on function public.delete_room_if_no_active_bookings(bigint) from public;
 grant execute on function public.current_user_role() to authenticated;
 grant execute on function public.is_staff() to authenticated;
 grant execute on function public.is_admin() to authenticated;
+grant execute on function public.get_room_daily_booking_usage(bigint, date, bigint) to authenticated;
 grant execute on function public.get_booking_statistics(date) to authenticated;
 grant execute on function public.delete_room_if_no_active_bookings(bigint) to authenticated;
 revoke all on function public.create_booking_reminders() from public;
